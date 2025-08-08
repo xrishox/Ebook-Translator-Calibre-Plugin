@@ -787,9 +787,10 @@ class ElementHandlerMerge(ElementHandler):
 
     def prepare_translation(self, paragraphs):
         # Return an ordered list of translations aligned to element order to
-        # avoid collisions when originals are duplicated.
+        # avoid collisions when originals are duplicated. Sort paragraphs by
+        # their persistent id to match the original merge order.
         translations: list[Any] = []
-        for paragraph in paragraphs:
+        for paragraph in sorted(paragraphs, key=lambda p: p.id):
             aligned = self.align_paragraph(paragraph)
             translations.extend([t for (_, t) in aligned])
         return translations
