@@ -691,12 +691,20 @@ class ElementHandler:
 
     def add_translations(self, paragraphs):
         translations = self.prepare_translation(paragraphs)
+        # Support both mapping-based (non-merge) and ordered list (merge)
+        # translations to avoid collisions for duplicate originals.
+        it = None
+        if isinstance(translations, list):
+            it = iter(translations)
         for eid, element in self.elements.copy().items():
             if element.ignored:
                 element.add_translation()
                 continue
-            original = element.get_content()
-            translation = translations.get(original)
+            if it is not None:
+                translation = next(it, None)
+            else:
+                original = element.get_content()
+                translation = translations.get(original)
             if translation is None:
                 element.add_translation()
                 continue
@@ -742,15 +750,16 @@ class ElementHandlerMerge(ElementHandler):
         return self.originals
 
     def align_paragraph(self, paragraph):
-        # Compatible with using the placeholder as the separator.
-        if paragraph.original[-2:] != self.separator:
-            pattern = re.compile(
-                r'\s*%s\s*' % self.placeholder[1].format(r'(0|[^0]\d*)'))
-            paragraph.original = pattern.sub(
-                self.separator, paragraph.original)
-            if paragraph.translation is not None:
-                paragraph.translation = pattern.sub(
-                    self.separator, paragraph.translation)
+        # Normalize any placeholder markers back to the logical separator
+        # before alignment. This supports merged payloads that injected
+        # boundary placeholders into the prompt for robust splitting and
+        # works regardless of trailing separators.
+        pattern = re.compile(
+            r'\s*%s\s*' % self.placeholder[1].format(r'(0|[^0]\d*)'))
+        paragraph.original = pattern.sub(self.separator, paragraph.original)
+        if paragraph.translation is not None:
+            paragraph.translation = pattern.sub(
+                self.separator, paragraph.translation)
         # Ensure the translation count matches the actual elements count.
         originals = paragraph.original.strip().split(self.separator)
         if paragraph.translation is None:
@@ -777,10 +786,13 @@ class ElementHandlerMerge(ElementHandler):
         return list(zip(originals, translations))
 
     def prepare_translation(self, paragraphs):
-        translations = []
+        # Return an ordered list of translations aligned to element order to
+        # avoid collisions when originals are duplicated.
+        translations: list[Any] = []
         for paragraph in paragraphs:
-            translations.extend(self.align_paragraph(paragraph))
-        return dict(translations)
+            aligned = self.align_paragraph(paragraph)
+            translations.extend([t for (_, t) in aligned])
+        return translations
 
 
 def get_srt_elements(path, encoding):

@@ -89,6 +89,29 @@ class ChatgptTranslate(GenAI):
         }
 
     def get_body(self, text):
+        # Inject boundary markers between merged segments to guarantee
+        # deterministic post-translation splitting while keeping a single
+        # large request/context.
+        def _inject_boundaries(content: str) -> str:
+            if not self.merge_enabled:
+                return content
+            sep = self.separator
+            parts = content.split(sep)
+            # Drop trailing empty part caused by terminal separator
+            if len(parts) > 1 and parts[-1] == '':
+                parts = parts[:-1]
+            if len(parts) <= 1:
+                return content
+            chunks = []
+            for i, p in enumerate(parts):
+                chunks.append(p)
+                if i < len(parts) - 1:
+                    marker = self.placeholder[0].format(format(i, '05'))
+                    # Keep original separator as well for readability.
+                    chunks.append(' %s %s' % (marker, sep))
+            return ''.join(chunks)
+
+        text = _inject_boundaries(text)
         body: dict[str, Any] = {
             'model': self.model,
             'messages': [
