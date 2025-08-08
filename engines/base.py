@@ -2,6 +2,8 @@ import os.path
 from typing import Any
 
 from mechanize import HTTPError
+from urllib.error import URLError
+import socket
 from mechanize._response import response_seek_wrapper as Response
 from calibre.utils.localization import lang_as_iso639_1
 
@@ -186,10 +188,28 @@ class Base:
         except Exception as e:
             # Combine the error messages for investigation.
             error_message = traceback_error()
+            # If we failed before getting a response, surface a connection/timeout error,
+            # otherwise treat it as a parse error and include the raw response.
             if isinstance(e, HTTPError):
-                error_message += '\n\n' + e.read().decode('utf-8')
-            elif not self.stream and 'response' in locals():
-                error_message += '\n\n' + response
+                # Include body from HTTP errors when available
+                try:
+                    error_message += '\n\n' + e.read().decode('utf-8')
+                except Exception:
+                    pass
+            elif isinstance(e, (URLError, socket.timeout, TimeoutError)) and 'response' not in locals():
+                # Network-level failure (e.g., timed out, DNS, connection refused)
+                network_message = _('Request to translation service failed (timeout or connectivity issue). Details: {}')
+                # Swap a valid API key if necessary.
+                if self.need_swap_api_key(str(e)) and self.swap_api_key():
+                    return self.translate(text)
+                raise UnexpectedResult(network_message.format(str(e)))
+
+            if not self.stream and 'response' in locals():
+                # We did get a response but couldn't parse/handle it; include the raw data.
+                try:
+                    error_message += '\n\n' + (response if isinstance(response, str) else '')
+                except Exception:
+                    pass
             # Swap a valid API key if necessary.
             if self.need_swap_api_key(error_message) and self.swap_api_key():
                 return self.translate(text)

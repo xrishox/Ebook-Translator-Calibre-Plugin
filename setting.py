@@ -242,7 +242,7 @@ class TranslationSetting(QDialog):
         merge_layout = QHBoxLayout(merge_group)
         merge_enabled = QCheckBox(_('Enable'))
         self.merge_length = QSpinBox()
-        self.merge_length.setRange(1, 99999)
+        self.merge_length.setRange(1, 999999)
         merge_layout.addWidget(merge_enabled)
         merge_layout.addWidget(self.merge_length)
         merge_layout.addWidget(QLabel(_(
@@ -432,7 +432,7 @@ class TranslationSetting(QDialog):
         request_attempt = QSpinBox()
         request_attempt.setRange(0, 9999)
         request_timeout = QDoubleSpinBox()
-        request_timeout.setRange(0, 9999)
+        request_timeout.setRange(0, 99999)
         request_timeout.setDecimals(1)
         request_layout = QFormLayout(request_group)
         request_layout.addRow(_('Concurrency limit'), concurrency_limit)
